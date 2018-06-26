@@ -19,26 +19,6 @@ app.use(bodyParser.json());
 // Mount the event handler on a route
 // NOTE: you must mount to a path that matches the Request URL that was configured earlier
 app.use('/slack/events', slackEvents.expressMiddleware());
-// Attach listeners to events by Slack Event "type". See: https://api.slack.com/events/message.im
-
-slackEvents.on('message', (event) => {
-  console.log(`Received a message event: user ${event.user} in channel ${event.channel} says ${event.text}`);
-  if (event.text && event.text.includes('play.google.com')) {
-    request({
-      method: 'POST',
-      uri: slackWebhookURL,
-      body: {
-        text: 'looks like you\'ve posted a track from google play music. jt will not be pleased :(',
-      },
-      json: true,
-    })
-      .then(response => console.log(response))
-      .catch(error => console.log(error));
-  }
-});
-
-// Handle errors (see `errorCodes` export)
-slackEvents.on('error', console.error);
 
 const doSwitch = (url) => {
   if (url.includes('play.google.com')) {
@@ -50,6 +30,26 @@ const doSwitch = (url) => {
   }
   return Promise.reject(new Error('URL not supported'));
 };
+
+// Attach listeners to events by Slack Event "type". See: https://api.slack.com/events/message.im
+slackEvents.on('link_shared', (event) => {
+  console.log(`Received a link_shared event: user ${event.user} in channel ${event.channel}`);
+  doSwitch(event.links[0].url).then((url) => {
+    request({
+      method: 'POST',
+      uri: slackWebhookURL,
+      body: {
+        text: `Straight up banging tune incoming: ${url}`,
+      },
+      json: true,
+    })
+      .then(response => console.log(response))
+      .catch(error => console.log(error));
+  });
+});
+
+// Handle errors (see `errorCodes` export)
+slackEvents.on('error', console.error);
 
 app.post('/switch', (req, res) => {
   doSwitch(req.body.url)

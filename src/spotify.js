@@ -25,7 +25,7 @@ const authenticateSpotify = () => {
 
 const searchSpotifyForTrack = playTrack => authenticateSpotify()
   .then(() => {
-    const query = `?q="${playTrack.title}" "${playTrack.artist}"&type=track`.replace(' ', '%20');
+    const query = `?q="${playTrack.title}" "${playTrack.artist}"&type=track`.replace(/ /g, '%20');
     return request({
       uri: `https://api.spotify.com/v1/search${query}`,
       auth: {

@@ -44,7 +44,7 @@ const searchPlay = spotifyTrack => new Promise((resolve, reject) => {
 
 const getPlayURL = spotifyTrack => searchPlay(spotifyTrack)
   .then(playTrack =>
-    `https://play.google.com/music/m/${playTrack.storeId}?t=${playTrack.title}_-_${playTrack.artist}`.replace(' ', '_'));
+    `https://play.google.com/music/m/${playTrack.storeId}?t=${playTrack.title}_-_${playTrack.artist}`.replace(/ /g, '_'));
 
 const getPlayTrackByUrl = (url) => {
   const pathTokens = url.split('?')[0].split('/');
