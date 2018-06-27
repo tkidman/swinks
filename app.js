@@ -16,6 +16,8 @@ const port = process.env.PORT || 3000;
 const app = express();
 app.use(bodyParser.json());
 
+const urlCache = [];
+
 // Mount the event handler on a route
 // NOTE: you must mount to a path that matches the Request URL that was configured earlier
 app.use('/slack/events', slackEvents.expressMiddleware());
@@ -34,18 +36,24 @@ const doSwitch = (url) => {
 // Attach listeners to events by Slack Event "type". See: https://api.slack.com/events/message.im
 slackEvents.on('link_shared', (event) => {
   console.log(`Received a link_shared event: user ${event.user} in channel ${event.channel}`);
-  doSwitch(event.links[0].url).then((url) => {
-    request({
-      method: 'POST',
-      uri: slackWebhookURL,
-      body: {
-        text: `Straight up banging tune incoming: ${url}`,
-      },
-      json: true,
-    })
-      .then(response => console.log(response))
-      .catch(error => console.log(error));
-  });
+  const eventUrl = event.links[0].url;
+  if (urlCache.includes(eventUrl)) {
+    console.log(`url ${eventUrl} found in cache, ignoring`);
+  } else {
+    urlCache.push(eventUrl);
+    doSwitch(eventUrl).then((url) => {
+      request({
+        method: 'POST',
+        uri: slackWebhookURL,
+        body: {
+          text: `Straight up banging tune incoming: ${url}`,
+        },
+        json: true,
+      })
+        .then(response => console.log(response))
+        .catch(error => console.log(error));
+    });
+  }
 });
 
 // Handle errors (see `errorCodes` export)
