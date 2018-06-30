@@ -1,13 +1,10 @@
-// Initialize using verification token from environment variables
-// http://759dc676.ngrok.io/slack/events
-// https://open.spotify.com/track/0nKe1H75sjT2lQMH1gjR3e
 const { createSlackEventAdapter } = require('@slack/events-api');
 const request = require('request-promise-native');
 const express = require('express');
 const bodyParser = require('body-parser');
 const http = require('http');
-const { getPlayURL, getPlayTrackByUrl } = require('./src/play');
-const { getSpotifyURL, getSpotifyTrackByUrl } = require('./src/spotify');
+const { getPlayURL, getPlayResultByUrl } = require('./src/play');
+const { getSpotifyURL, getSpotifyResultByUrl } = require('./src/spotify');
 
 const slackEvents = createSlackEventAdapter(process.env.SLACK_VERIFICATION_TOKEN);
 const slackWebhookURL = process.env.SLACK_WEBHOOK_URL;
@@ -18,57 +15,59 @@ app.use(bodyParser.json());
 
 const urlCache = [];
 
-// Mount the event handler on a route
-// NOTE: you must mount to a path that matches the Request URL that was configured earlier
 app.use('/slack/events', slackEvents.expressMiddleware());
 
 const doSwitch = (url) => {
   if (url.includes('play.google.com')) {
-    return getPlayTrackByUrl(url)
+    return getPlayResultByUrl(url)
       .then(playTrack => getSpotifyURL(playTrack));
   } else if (url.includes('open.spotify.com')) {
-    return getSpotifyTrackByUrl(url)
-      .then(spotifyTrack => getPlayURL(spotifyTrack));
+    return getSpotifyResultByUrl(url)
+      .then(spotifyResult => getPlayURL(spotifyResult));
   }
   return Promise.reject(new Error('URL not supported'));
 };
 
-// Attach listeners to events by Slack Event "type". See: https://api.slack.com/events/message.im
+const postSwitchedURL = (url) => {
+  const options = {
+    method: 'POST',
+    uri: slackWebhookURL,
+    body: {
+      text: url,
+    },
+    json: true,
+  };
+  return request(options);
+};
+
 slackEvents.on('link_shared', (event) => {
-  console.log(`Received a link_shared event: user ${event.user} in channel ${event.channel}`);
+  console.log(`Received a link_shared event: user ${event.user} in channel ${event.channel} link: ${event.links[0].url}`);
   const eventUrl = event.links[0].url;
+
   if (urlCache.includes(eventUrl)) {
     console.log(`url ${eventUrl} found in cache, ignoring`);
   } else {
     urlCache.push(eventUrl);
-    doSwitch(eventUrl).then((url) => {
-      request({
-        method: 'POST',
-        uri: slackWebhookURL,
-        body: {
-          text: `Straight up banging tune incoming: ${url}`,
-        },
-        json: true,
-      })
-        .then(response => console.log(response))
-        .catch(error => console.log(error));
-    });
+    doSwitch(eventUrl)
+      .then(url => postSwitchedURL(url))
+      .then(response => console.log(response))
+      .catch(error => console.log(error));
   }
 });
 
-// Handle errors (see `errorCodes` export)
 slackEvents.on('error', console.error);
 
-app.post('/switch', (req, res) => {
+app.post('/switch', (req, res, next) => {
   doSwitch(req.body.url)
-    .then(track => res.send(track))
+    .then(switchedUrl => res.send({ url: switchedUrl }))
     .catch((err) => {
       console.log(err);
-      res.send(err);
+      next(err);
     });
 });
 
-// Start the express application
 http.createServer(app).listen(port, () => {
   console.log(`server listening on port ${port}`);
 });
+
+module.exports = app;

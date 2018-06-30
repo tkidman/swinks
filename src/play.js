@@ -17,9 +17,9 @@ const initPlay = () => new Promise((resolve, reject) => {
   });
 });
 
-const getPlayTrackById = tid => new Promise((resolve, reject) => {
+const getPlayTrackById = id => new Promise((resolve, reject) => {
   initPlay()
-    .then(() => pm.getAllAccessTrack(tid, (err, track) => {
+    .then(() => pm.getAllAccessTrack(id, (err, track) => {
       if (err) {
         reject(err);
       }
@@ -27,12 +27,20 @@ const getPlayTrackById = tid => new Promise((resolve, reject) => {
     }));
 });
 
-const searchPlay = spotifyTrack => new Promise((resolve, reject) => {
+const getPlayAlbumById = id => new Promise((resolve, reject) => {
+  initPlay()
+    .then(() => pm.getAlbum(id, false, (err, album) => {
+      if (err) {
+        reject(err);
+      }
+      resolve(album);
+    }));
+});
+
+const searchPlayForTrack = spotifyTrack => new Promise((resolve, reject) => {
   initPlay()
     .then(() => {
-      pm.search(`"${spotifyTrack.name}" "${spotifyTrack.artists[0].name}"`, 5, (error, data) => { // max 5 results
-        // const song = data.entries.sort((a, b) => a.score < b.score).shift(); // sort and take first song
-        // console.log(song);
+      pm.search(`"${spotifyTrack.name}" "${spotifyTrack.artists[0].name}"`, 5, (error, data) => {
         if (error) {
           reject(error);
         }
@@ -42,17 +50,40 @@ const searchPlay = spotifyTrack => new Promise((resolve, reject) => {
     });
 });
 
-const getPlayURL = spotifyTrack => searchPlay(spotifyTrack)
-  .then(playTrack =>
-    `https://play.google.com/music/m/${playTrack.storeId}?t=${playTrack.title}_-_${playTrack.artist}`.replace(/ /g, '_'));
+const searchPlayForAlbum = spotifyAlbum => new Promise((resolve, reject) => {
+  initPlay()
+    .then(() => {
+      pm.search(`"${spotifyAlbum.name}" "${spotifyAlbum.artists[0].name}"`, 5, (error, data) => {
+        if (error) {
+          reject(error);
+        }
+        const playAlbum = data.entries.find(entry => entry.type === '3').album;
+        resolve(playAlbum);
+      });
+    });
+});
 
-const getPlayTrackByUrl = (url) => {
+const getPlayURL = (spotifyResult) => {
+  if (spotifyResult.type === 'album') {
+    return searchPlayForAlbum(spotifyResult)
+      .then(playAlbum =>
+        `https://play.google.com/music/m/${playAlbum.albumId}?t=${playAlbum.name}_-_${playAlbum.artist}`.replace(/ /g, '_'));
+  }
+  return searchPlayForTrack(spotifyResult)
+    .then(playTrack =>
+      `https://play.google.com/music/m/${playTrack.storeId}?t=${playTrack.title}_-_${playTrack.artist}`.replace(/ /g, '_'));
+};
+
+const getPlayResultByUrl = (url) => {
   const pathTokens = url.split('?')[0].split('/');
-  const tid = pathTokens[pathTokens.length - 1];
-  return getPlayTrackById(tid);
+  const id = pathTokens[pathTokens.length - 1];
+  if (id[0] === 'B') {
+    return getPlayAlbumById(id);
+  }
+  return getPlayTrackById(id);
 };
 
 module.exports = {
-  getPlayTrackByUrl,
+  getPlayResultByUrl,
   getPlayURL,
 };

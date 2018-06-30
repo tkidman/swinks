@@ -35,28 +35,47 @@ const searchSpotifyForTrack = playTrack => authenticateSpotify()
     }).then(result => result.tracks.items[0]);
   });
 
-const getSpotifyTrackById = id => authenticateSpotify()
+const searchSpotifyForAlbum = playAlbum => authenticateSpotify()
+  .then(() => {
+    const query = `?q="${playAlbum.name}" "${playAlbum.artist}"&type=album`.replace(/ /g, '%20');
+    return request({
+      uri: `https://api.spotify.com/v1/search${query}`,
+      auth: {
+        bearer: token,
+      },
+      json: true,
+    }).then(result => result.albums.items[0]);
+  });
+
+const getSpotifyResultById = (id, type) => authenticateSpotify()
   .then(() => request({
-    uri: `https://api.spotify.com/v1/tracks/${id}`,
+    uri: `https://api.spotify.com/v1/${type}/${id}`,
     auth: {
       bearer: token,
     },
     json: true,
   }));
 
-const getSpotifyURL = playTrack => searchSpotifyForTrack(playTrack)
-  .then(spotifyTrack => spotifyTrack.external_urls.spotify);
+const getSpotifyURL = (playResult) => {
+  if (playResult.kind.includes('album')) {
+    return searchSpotifyForAlbum(playResult)
+      .then(spotifyAlbum => spotifyAlbum.external_urls.spotify);
+  }
+  return searchSpotifyForTrack(playResult)
+    .then(spotifyTrack => spotifyTrack.external_urls.spotify);
+};
 
-// https://open.spotify.com/track/7gHs73wELdeycvS48JfIos
-
-const getSpotifyTrackByUrl = (url) => {
+const getSpotifyResultByUrl = (url) => {
   const pathArray = url.split('/');
   const id = pathArray[pathArray.length - 1];
-  return getSpotifyTrackById(id);
+  if (url.includes('album')) {
+    return getSpotifyResultById(id, 'albums');
+  }
+  return getSpotifyResultById(id, 'tracks');
 };
 
 module.exports = {
   getSpotifyURL,
-  getSpotifyTrackByUrl,
+  getSpotifyResultByUrl,
 };
 
